@@ -58,7 +58,7 @@ async def test_logic(request: PromptRequest):
         
         return {
             "status": "success",
-            "model_tested": "gemini-1.5-flash",
+            "model_tested": "gemini-2.5-flash",
             "simulations": simulations
         }
 

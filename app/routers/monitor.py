@@ -1,67 +1,71 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List
 
-# Import the services we built
+# Import our upgraded services
 from app.services.mutator import PromptMutator
 from app.services.llm_client import LLMClient
 from app.services.evaluator import LogicEvaluator
+from app.services.database import DatabaseService
 
-# Define the router with metadata for the /docs page
 router = APIRouter(
     prefix="/monitor",
     tags=["SimuRed Monitoring"]
 )
 
-# Initialize services globally so they persist across requests
+# Initialize services
 mutator = PromptMutator()
 llm_client = LLMClient()
 evaluator = LogicEvaluator()
+db = DatabaseService()
 
-# Define the shape of the incoming data
 class PromptRequest(BaseModel):
     prompt: str
 
 @router.post("/test-logic")
 async def test_logic(request: PromptRequest):
     """
-    The core SimuRed endpoint: 
-    Mutates a prompt, queries Gemini, and evaluates logical drift.
+    Core SimuRed Pipeline:
+    1. Mutate -> 2. Query Gemini -> 3. Evaluate Meaning -> 4. Save to Cloud
     """
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
 
     try:
-        # 1. Generate the 'Attacks' (Original, Typo, Semantic)
-        # This uses NLPAug under the hood.
+        # Generate Attacks (Typo, Semantic Swap)
         attack_dict = mutator.generate_attacks(request.prompt)
         
-        # 2. Get AI Responses for all versions in parallel
-        # This uses litellm + async to stay fast.
+        # Get AI Responses (using async acompletion)
         responses = await llm_client.get_responses(attack_dict)
         
-        # 3. Calculate Logical Drift (The Stats Flex)
-        # Compares attack responses against the original baseline.
+        # Calculate Semantic Drift (using Sentence-Transformers)
         drift_report = evaluator.evaluate_drift(responses)
         
-        # 4. Package the results into a clean list
+        # Package and Persist Results
         simulations = []
         for attack_type in attack_dict:
-            # We use .get() for drift_metrics because the 'original' 
-            # version won't have a drift score (it IS the baseline).
-            simulations.append({
+            # Prepare the data object
+            sim_data = {
                 "type": attack_type,
                 "input": attack_dict[attack_type],
                 "output": responses[attack_type],
-                "drift_metrics": drift_report.get(attack_type, "Baseline / Original")
-            })
+                "drift_metrics": drift_report.get(attack_type, {"similarity_score": 1.0, "is_stable": True})
+            }
+            
+            try:
+                db.save_simulation(request.prompt, sim_data)
+            except Exception as db_err:
+                print(f"Database logging failed: {db_err}")
+                # We don't raise an error here so the API still returns results 
+                # even if the DB connection blips.
+
+            simulations.append(sim_data)
         
         return {
             "status": "success",
-            "model_tested": "gemini-2.5-flash",
+            "model_tested": "gemini-1.5-flash-latest",
             "simulations": simulations
         }
 
     except Exception as e:
-        # Professional error handling so the API doesn't just 'die'
         raise HTTPException(status_code=500, detail=f"Simulation failed: {str(e)}")

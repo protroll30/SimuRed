@@ -3,8 +3,6 @@ import torch
 
 class LogicEvaluator:
     def __init__(self):
-        # This downloads a small (80MB) transformer model on first run
-        # It maps sentences into a 384-dimensional dense vector space
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
 
     def calculate_semantic_similarity(self, text_a: str, text_b: str) -> float:
@@ -12,11 +10,10 @@ class LogicEvaluator:
         Computes the Cosine Similarity between two text embeddings.
         1.0 = Identical Meaning | 0.0 = Completely Unrelated
         """
-        # Encode the text into vectors
+        # Encode text into vectors
         embeddings = self.model.encode([text_a, text_b], convert_to_tensor=True)
         
-        # Calculate Cosine Similarity (the angle between the vectors)
-        # 
+        # Calculate Cosine Similarity
         cosine_sim = util.cos_sim(embeddings[0], embeddings[1])
         
         return round(float(cosine_sim.item()), 4)
@@ -34,7 +31,6 @@ class LogicEvaluator:
             similarity = self.calculate_semantic_similarity(original, response_text)
             
             # THE THRESHOLD:
-            # Semantic scores are naturally higher than Jaccard.
             # 0.85 is a safe "Stable" threshold for professional LLM work.
             scores[attack_type] = {
                 "similarity_score": similarity,

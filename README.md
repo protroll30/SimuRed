@@ -17,13 +17,25 @@ FastAPI service that **mutates a user prompt**, **queries an LLM** for each vari
 
 ## Environment variables
 
-Create a `.env` in the project root:
+Create a `.env` file in the project root (same folder as `requirements.txt`). The file is **gitignored**—do not commit it or push it to GitHub. If `.env` was ever committed, remove it from git history and rotate any exposed keys.
 
-| Variable | Purpose |
-|----------|---------|
-| `GEMINI_API_KEY` | Google AI Studio key for LiteLLM → Gemini |
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_KEY` | Supabase service or anon key (must allow inserts used by the client) |
+Your `.env` should define exactly these variables (no quotes required unless the value contains spaces):
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `GEMINI_API_KEY` | Yes (for LLM calls) | Google AI Studio API key for LiteLLM → Gemini |
+| `SUPABASE_URL` | Yes | Supabase project URL (Settings → API → Project URL); required at startup |
+| `SUPABASE_KEY` | Yes | Supabase **service role** or anon key; must allow `INSERT` into `simulations` |
+
+Example shape (replace with your real values):
+
+```env
+GEMINI_API_KEY=your_google_ai_studio_key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_supabase_service_or_anon_key
+```
+
+With the current code, `SUPABASE_URL` and `SUPABASE_KEY` must be set or the app will fail to start (`DatabaseService` builds the client when the monitor router loads). If inserts fail for other reasons, each failure is logged and the request still returns JSON (see `app/routers/monitor.py`).
 
 ## Supabase schema
 

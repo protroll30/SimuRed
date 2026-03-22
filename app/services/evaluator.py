@@ -1,49 +1,44 @@
-import re
+from sentence_transformers import SentenceTransformer, util
+import torch
 
 class LogicEvaluator:
     def __init__(self):
-        # 'clean' the text for a fair comparison
-        self.clean_pattern = re.compile(r'[^a-zA-Z\s]')
+        # This downloads a small (80MB) transformer model on first run
+        # It maps sentences into a 384-dimensional dense vector space
+        self.model = SentenceTransformer('all-MiniLM-L6-v2')
 
-    def _tokenize(self, text: str) -> set:
+    def calculate_semantic_similarity(self, text_a: str, text_b: str) -> float:
         """
-        Cleans the text and turns it into a set of unique words.
+        Computes the Cosine Similarity between two text embeddings.
+        1.0 = Identical Meaning | 0.0 = Completely Unrelated
         """
-        clean_text = self.clean_pattern.sub('', text.lower())
-        return set(clean_text.split())
-    
-    def calculate_jaccard(self, text_a: str, text_b: str) -> float:
-        """
-        Jaccard Similarity = (A ∩ B) / (A ∪ B)
-        """
-        set_a = self._tokenize(text_a)
-        set_b = self._tokenize(text_b)
+        # Encode the text into vectors
+        embeddings = self.model.encode([text_a, text_b], convert_to_tensor=True)
         
-        intersection = len(set_a.intersection(set_b))
-        union = len(set_a.union(set_b))
+        # Calculate Cosine Similarity (the angle between the vectors)
+        # 
+        cosine_sim = util.cos_sim(embeddings[0], embeddings[1])
         
-        # Avoid division by zero
-        if union == 0:
-            return 1.0
-            
-        return round(intersection / union, 4)
+        return round(float(cosine_sim.item()), 4)
 
     def evaluate_drift(self, responses: dict) -> dict:
-        """
-        Compares the 'attack' responses against the 'original' response.
-        """
         original = responses.get("original", "")
-        scores = {}
+        if not original:
+            return {}
 
+        scores = {}
         for attack_type, response_text in responses.items():
             if attack_type == "original":
                 continue
             
-            # Calculate how much the logic drifted from the original
-            similarity = self.calculate_jaccard(original, response_text)
+            similarity = self.calculate_semantic_similarity(original, response_text)
+            
+            # THE THRESHOLD:
+            # Semantic scores are naturally higher than Jaccard.
+            # 0.85 is a safe "Stable" threshold for professional LLM work.
             scores[attack_type] = {
                 "similarity_score": similarity,
-                "is_stable": similarity > 0.7  # If >70% same, we call it 'Stable'
+                "is_stable": similarity > 0.85
             }
             
         return scores

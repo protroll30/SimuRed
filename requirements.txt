@@ -1,0 +1,21 @@
+# --- Web & API (SWE) ---
+fastapi>=0.110.0
+uvicorn>=0.27.1
+python-dotenv>=1.0.1
+pydantic>=2.6.1
+
+# --- Task Queue & Async (Systems) ---
+celery>=5.3.6
+redis>=5.0.1
+
+# --- AI & LLM Interface (MLE) ---
+litellm>=1.31.1
+instructor>=1.0.0
+
+# --- Real ML & Math (Stats/NLP) ---
+scikit-learn>=1.4.1.post1
+pandas>=2.2.1
+numpy>=1.26.4
+nlpaug>=1.1.11
+nltk>=3.8.1
+gdown  # Required by nlpaug to download model data

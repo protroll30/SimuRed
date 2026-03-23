@@ -1,13 +1,15 @@
 import os
-from litellm import acompletion
+from typing import cast
+
 from dotenv import load_dotenv
+from litellm import ModelResponse, acompletion
 
 load_dotenv()
 
 class LLMClient:
     def __init__(self):
         # Stable id for Gemini API (Google AI); see https://ai.google.dev/gemini-api/docs/models
-        self.model = "gemini/gemini-2.5-flash"
+        self.model = "gemini/gemini-3-flash-preview"
         self.api_key = os.getenv("GEMINI_API_KEY")
 
     async def get_responses(self, prompt_dict: dict):
@@ -22,10 +24,12 @@ class LLMClient:
                 response = await acompletion(
                     model=self.model,
                     messages=[{"content": text, "role": "user"}],
-                    api_key=self.api_key
+                    api_key=self.api_key,
+                    stream=False,
                 )
-                # Extract the text content
-                responses[attack_type] = response.choices[0].message.content
+                completion = cast(ModelResponse, response)
+                content = completion.choices[0].message.content
+                responses[attack_type] = content if content is not None else ""
             except Exception as e:
                 # Fallback if one specific call fails
                 responses[attack_type] = f"Error calling LLM: {str(e)}"

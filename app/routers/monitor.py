@@ -1,8 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List
 
-# Import our upgraded services
 from app.services.mutator import PromptMutator
 from app.services.llm_client import LLMClient
 from app.services.evaluator import LogicEvaluator
@@ -13,10 +11,9 @@ router = APIRouter(
     tags=["SimuRed Monitoring"]
 )
 
-# Initialize services
 mutator = PromptMutator()
 llm_client = LLMClient()
-evaluator = LogicEvaluator()
+evaluator = LogicEvaluator(llm_client)
 db = DatabaseService()
 
 class PromptRequest(BaseModel):
@@ -24,27 +21,16 @@ class PromptRequest(BaseModel):
 
 @router.post("/test-logic")
 async def test_logic(request: PromptRequest):
-    """
-    Core SimuRed Pipeline:
-    1. Mutate -> 2. Query Gemini -> 3. Evaluate Meaning -> 4. Save to Cloud
-    """
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
 
     try:
-        # Generate Attacks (Typo, Semantic Swap)
         attack_dict = mutator.generate_attacks(request.prompt)
-        
-        # Get AI Responses (using async acompletion)
         responses = await llm_client.get_responses(attack_dict)
-        
-        # Calculate Semantic Drift (using Sentence-Transformers)
-        drift_report = evaluator.evaluate_drift(responses)
-        
-        # Package and Persist Results
+        drift_report = await evaluator.evaluate_drift(responses)
+
         simulations = []
         for attack_type in attack_dict:
-            # Prepare the data object
             sim_data = {
                 "type": attack_type,
                 "input": attack_dict[attack_type],
@@ -56,8 +42,6 @@ async def test_logic(request: PromptRequest):
                 db.save_simulation(request.prompt, sim_data)
             except Exception as db_err:
                 print(f"Database logging failed: {db_err}")
-                # We don't raise an error here so the API still returns results 
-                # even if the DB connection blips.
 
             simulations.append(sim_data)
         

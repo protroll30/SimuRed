@@ -10,9 +10,6 @@ class LLMClient:
         self.api_key = os.getenv("GEMINI_API_KEY")
 
     async def get_responses(self, prompt_dict: dict):
-        """
-        Standard generator: Gets responses for all attack variations.
-        """
         responses = {}
         for attack_type, text in prompt_dict.items():
             try:
@@ -30,10 +27,6 @@ class LLMClient:
         return responses
 
     async def judge_equivalence(self, original_out: str, mutated_out: str) -> bool:
-        """
-        The 'Logic Guard': Specifically looks for semantic drift or flipped meaning.
-        """
-        # Tight, specific prompt to minimize 'vibe' and maximize 'logic'
         judge_prompt = f"""
         INSTRUCTION: Compare these two AI responses. 
         Determine if they are LOGICALLY EQUIVALENT in substance.
@@ -51,7 +44,7 @@ class LLMClient:
                 model=self.model,
                 messages=[{"content": judge_prompt, "role": "user"}],
                 api_key=self.api_key,
-                max_tokens=2,  # 1 word, cheap
+                max_tokens=2,
                 temperature=0.0,
                 stream=False,
             )
@@ -62,4 +55,4 @@ class LLMClient:
             
         except Exception as e:
             print(f"⚖️ Judge Failed: {e}")
-            return False # Default to 'Unstable' if we can't be sure
+            return False

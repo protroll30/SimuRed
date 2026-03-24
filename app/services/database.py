@@ -11,9 +11,6 @@ class DatabaseService:
         self.supabase: Client = create_client(url, key)
 
     def save_simulation(self, original: str, result_dict: dict):
-        """
-        Pushes a single simulation result to the Supabase 'simulations' table.
-        """
         data = {
             "original_prompt": original,
             "attack_type": result_dict["type"],
@@ -22,6 +19,5 @@ class DatabaseService:
             "similarity_score": result_dict["drift_metrics"].get("similarity_score", 1.0),
             "is_stable": result_dict["drift_metrics"].get("is_stable", True)
         }
-        
-        # Insert the dictionary into the table
+
         return self.supabase.table("simulations").insert(data).execute()

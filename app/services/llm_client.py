@@ -1,12 +1,17 @@
 import os
 from typing import cast
 
-from dotenv import load_dotenv
 from litellm import ModelResponse, acompletion
+
+# LiteLLM IDs, e.g. gemini/gemini-2.0-flash, gemini/gemini-1.5-flash
+_DEFAULT_CHAT = "gemini/gemini-2.5-flash"
+
 
 class LLMClient:
     def __init__(self):
-        self.model = "gemini/gemini-3-flash-preview"
+        self.model = (os.getenv("LLM_MODEL") or _DEFAULT_CHAT).strip()
+        # Optional: cheaper model for judge_equivalence (high call volume). Defaults to LLM_MODEL.
+        self.judge_model = (os.getenv("LLM_JUDGE_MODEL") or self.model).strip()
         self.api_key = os.getenv("GEMINI_API_KEY")
 
     async def get_responses(self, prompt_dict: dict):
@@ -41,7 +46,7 @@ class LLMClient:
 
         try:
             response = await acompletion(
-                model=self.model,
+                model=self.judge_model,
                 messages=[{"content": judge_prompt, "role": "user"}],
                 api_key=self.api_key,
                 max_tokens=2,

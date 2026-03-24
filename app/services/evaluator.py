@@ -2,6 +2,14 @@ from sentence_transformers import SentenceTransformer, util
 import torch
 import re
 
+from app.services.dataset_quality import is_bad_llm_output
+
+# Recall-oriented: only skip the judge when embeddings are extremely aligned and the
+# negation heuristic sees no mismatch. Everything else gets a Gemini equivalence check.
+_SIMILARITY_JUDGE_IF_BELOW = 0.95
+_SIMILARITY_AUTO_STABLE_MIN = _SIMILARITY_JUDGE_IF_BELOW
+
+
 class LogicEvaluator:
     def __init__(self, llm_client):
         self.model = SentenceTransformer('all-mpnet-base-v2')
@@ -22,13 +30,34 @@ class LogicEvaluator:
         original = responses.get("original", "")
         if not original: return {}
 
+        if is_bad_llm_output(original):
+            return {
+                at: {
+                    "similarity_score": 0.0,
+                    "is_stable": False,
+                    "method": "Skipped (bad original)",
+                }
+                for at in responses
+                if at != "original"
+            }
+
         scores = {}
         for attack_type, response_text in responses.items():
             if attack_type == "original": continue
 
+            if is_bad_llm_output(response_text):
+                scores[attack_type] = {
+                    "similarity_score": 0.0,
+                    "is_stable": False,
+                    "method": "Skipped (bad response)",
+                }
+                continue
+
             similarity = self.calculate_semantic_similarity(original, response_text)
-            needs_judge = (0.60 < similarity < 0.88) or (similarity > 0.88 and self._contains_logical_flip(original, response_text))
-            is_stable = similarity >= 0.70
+            needs_judge = similarity < _SIMILARITY_JUDGE_IF_BELOW or self._contains_logical_flip(
+                original, response_text
+            )
+            is_stable = similarity >= _SIMILARITY_AUTO_STABLE_MIN
 
             if needs_judge:
                 is_stable = await self.llm.judge_equivalence(original, response_text)
